@@ -1,0 +1,71 @@
+services:
+  directory-a:
+    build: .
+    image: directory-migration-gateway:local
+    command: ["python", "-I", "directory.py"]
+    environment:
+      PORT: "9000"
+      DIRECTORY_ID: directory-a
+      ARTIFACT_DIR: /srv/artifacts
+      DEFAULT_DELAY: "2.0"
+    expose:
+      - "9000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:9000/healthz')"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+    restart: unless-stopped
+
+  directory-b:
+    build: .
+    image: directory-migration-gateway:local
+    command: ["python", "-I", "directory.py"]
+    environment:
+      PORT: "9000"
+      DIRECTORY_ID: directory-b
+      ARTIFACT_DIR: /srv/artifacts
+      DEFAULT_DELAY: "2.0"
+    expose:
+      - "9000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:9000/healthz')"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+    restart: unless-stopped
+
+  gateway:
+    build: .
+    image: directory-migration-gateway:local
+    command: ["python", "-I", "gateway.py"]
+    environment:
+      PORT: "8080"
+      DATA_DIR: /data
+      UPSTREAM_URL: http://directory-a:9000
+      DIRECTORY_A_URL: http://directory-a:9000
+      DIRECTORY_B_URL: http://directory-b:9000
+      DEFAULT_ARTIFACT: example-app.json
+      WORKER_COUNT: "2"
+      REQUEST_TIMEOUT: "8.0"
+      PREFLIGHT_TIMEOUT: "5.0"
+      COOLDOWN: "5.0"
+      FAILURE_THRESHOLD: "3"
+    ports:
+      - "8080:8080"
+    volumes:
+      - gateway-data:/data
+    depends_on:
+      directory-a:
+        condition: service_healthy
+      directory-b:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8080/healthz')"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  gateway-data:
